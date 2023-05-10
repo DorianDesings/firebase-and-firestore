@@ -17,12 +17,10 @@ export const AuthProvider = ({ children }) => {
 				// El usuario está autenticado
 				console.log('Usuario autenticado:', user);
 				setCurrentUser(user);
-				localStorage.setItem('currentUser', JSON.stringify(user)); // Guardar el usuario en localStorage
 			} else {
 				// El usuario no está autenticado
 				console.log('Usuario no autenticado');
 				setCurrentUser(null);
-				localStorage.removeItem('currentUser'); // Eliminar el usuario de localStorage
 			}
 		});
 

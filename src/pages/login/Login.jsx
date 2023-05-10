@@ -3,7 +3,9 @@ import {
 	signInWithEmailAndPassword,
 	signInWithPopup
 } from 'firebase/auth';
+
 import { useContext, useEffect, useState } from 'react';
+
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../../config/firebase.config';
 import { AuthContext } from '../../contexts/auth.context';

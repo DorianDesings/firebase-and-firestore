@@ -1,20 +1,21 @@
 import { addDoc } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { blogCollectionReference, storage } from '../../config/firebase.config';
+import { blogCollectionReference } from '../../config/firebase.config';
 import { AuthContext } from '../../contexts/auth.context';
 
 const NewPost = () => {
 	const navigate = useNavigate();
 	const { currentUser } = useContext(AuthContext);
+
 	const [newPostInfo, setNewPostInfo] = useState({
 		title: '',
 		text: ''
 	});
 
-	const [imagePreview, setImagePreview] = useState(null);
-	const [imageURL, setImageURL] = useState(null);
+	const [imageURL, setImageURL] = useState(
+		'https://firebasestorage.googleapis.com/v0/b/crud-firebase-eed75.appspot.com/o/default.jpg?alt=media&token=9664266e-d33d-4d52-a03e-98d1deaffa3d'
+	);
 
 	useEffect(() => {
 		if (!currentUser) navigate('/');
@@ -44,56 +45,61 @@ const NewPost = () => {
 						}
 					/>
 				</div>
+
+				<input type='submit' value='Crear Post' />
+			</form>
+
+			<form>
+				<img src={imageURL} alt='' />
 				<div>
 					<input
 						type='file'
-						onChange={e =>
-							handleUpload(e.target.files[0], setImagePreview, setImageURL)
-						}
+						onChange={e => handleUpload(e.target.files[0], setImageURL)}
 					/>
-					{imagePreview && <img src={imagePreview} />}
 				</div>
-
-				<input type='submit' value='Crear Post' />
 			</form>
 		</>
 	);
 };
 
-const handleUpload = async (file, setImagePreview, setImageURL) => {
+const handleUpload = async (file, setImageURL) => {
 	// Crea un objeto FileReader
 	const reader = new FileReader();
 
 	// Escucha el evento load que se dispara cuando la lectura del archivo es completada
 	reader.onload = event => {
 		const imageUrl = event.target.result;
-		setImagePreview(imageUrl);
+		const test = reader.readAsDataURL(imageUrl);
+
+		console.log(test);
+		setImageURL(imageUrl);
 	};
-	reader.readAsDataURL(file);
-	handleFileUpload(file, setImageURL);
+	// handleFileUpload(file, setImageURL);
 };
 
-const handleFileUpload = async (file, setImageURL) => {
-	// Sube el archivo al almacenamiento de Firebase
-	const storageRef = ref(storage, file.name);
+// const handleFileUpload = async (file, setImageURL) => {
+// 	// Sube el archivo al almacenamiento de Firebase
+// 	const storageRef = ref(storage, file.name);
+// 	try {
+// 		await uploadBytes(storageRef, file);
+// 		await getDownloadURL(storageRef);
+// 	} catch (err) {
+// 		console.log(err);
+// 	}
+// };
+
+const createPost = async (e, newPostInfo) => {
+	e.preventDefault();
+
 	try {
-		await uploadBytes(storageRef, file);
-		const downloadURL = await getDownloadURL(storageRef);
-		setImageURL(downloadURL);
+		await addDoc(blogCollectionReference, {
+			...newPostInfo,
+			date: new Date().toLocaleString()
+		});
 	} catch (err) {
 		console.log(err);
 	}
-};
 
-const createPost = async (e, newPostInfo, currentUser, imageURL) => {
-	e.preventDefault();
-	if (!newPostInfo.title || !newPostInfo.text || !imageURL) return;
-	await addDoc(blogCollectionReference, {
-		...newPostInfo,
-		email: currentUser.email,
-		date: new Date().toLocaleString(),
-		imageURL
-	});
 	e.target.reset();
 };
 

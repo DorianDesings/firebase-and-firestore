@@ -1,4 +1,4 @@
-import { deleteDoc, doc, getDocs } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { useContext, useEffect, useState } from 'react';
 import { blogCollectionReference } from '../../config/firebase.config';
 import { AuthContext } from '../../contexts/auth.context';
@@ -6,8 +6,18 @@ import { AuthContext } from '../../contexts/auth.context';
 const Home = () => {
 	const { currentUser } = useContext(AuthContext);
 	const [posts, setPosts] = useState([]);
+
 	useEffect(() => {
-		getPosts(setPosts);
+		const subscribeToData = onSnapshot(blogCollectionReference, snapshot => {
+			const dataInfo = snapshot.docs.map(doc => ({
+				id: doc.id,
+				...doc.data()
+			}));
+
+			dataInfo.length === 0 ? setPosts(null) : setPosts(dataInfo);
+		});
+
+		return () => subscribeToData();
 	}, []);
 
 	if (posts && posts.length === 0) return <h1>Loading posts...</h1>;
@@ -37,22 +47,23 @@ const Home = () => {
 	);
 };
 
-const getPosts = async setPosts => {
-	const dataColection = await getDocs(blogCollectionReference);
-	const dataInfo = dataColection.docs.map(doc => ({
-		...doc.data(),
-		id: doc.id
-	}));
-
-	dataInfo.length === 0 ? setPosts(null) : setPosts(dataInfo);
+const getPostById = async id => {
+	const postReference = doc(blogCollectionReference, id);
+	try {
+		const postToRead = await getDoc(postReference);
+		console.log(postToRead.data());
+	} catch (err) {
+		console.log(err);
+	}
 };
 
-const editPost = async post => {};
-
-const deletePost = async (id, setPosts) => {
-	const postDoc = doc(blogCollectionReference, id);
-	await deleteDoc(postDoc);
-	getPosts(setPosts);
+const deletePost = async id => {
+	try {
+		const postToDelete = doc(blogCollectionReference, id);
+		await deleteDoc(postToDelete);
+	} catch (error) {
+		console.error('Error al actualizar el documento:', error);
+	}
 };
 
 export default Home;
