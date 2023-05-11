@@ -1,21 +1,31 @@
 import { addDoc } from 'firebase/firestore';
-import { useContext, useEffect, useState } from 'react';
+import {
+	deleteObject,
+	getDownloadURL,
+	listAll,
+	ref,
+	uploadBytesResumable
+} from 'firebase/storage';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { blogCollectionReference } from '../../config/firebase.config';
+import { v4 } from 'uuid';
+import { blogCollectionReference, storage } from '../../config/firebase.config';
 import { AuthContext } from '../../contexts/auth.context';
+
+const defaultImage =
+	'https://firebasestorage.googleapis.com/v0/b/crud-firebase-eed75.appspot.com/o/default.png?alt=media&token=d7f69d12-7a3f-49ac-93cb-e45e32d5df3d';
 
 const NewPost = () => {
 	const navigate = useNavigate();
 	const { currentUser } = useContext(AuthContext);
+	const inputFileRef = useRef(null);
 
 	const [newPostInfo, setNewPostInfo] = useState({
 		title: '',
 		text: ''
 	});
 
-	const [imageURL, setImageURL] = useState(
-		'https://firebasestorage.googleapis.com/v0/b/crud-firebase-eed75.appspot.com/o/default.jpg?alt=media&token=9664266e-d33d-4d52-a03e-98d1deaffa3d'
-	);
+	const [imageURL, setImageURL] = useState(defaultImage);
 
 	useEffect(() => {
 		if (!currentUser) navigate('/');
@@ -49,44 +59,91 @@ const NewPost = () => {
 				<input type='submit' value='Crear Post' />
 			</form>
 
-			<form>
+			<form onSubmit={e => e.preventDefault()}>
 				<img src={imageURL} alt='' />
+				{imageURL !== defaultImage && (
+					<button
+						onClick={() =>
+							handleDeleteImage(imageURL, setImageURL, inputFileRef)
+						}
+					>
+						Delete image
+					</button>
+				)}
+
 				<div>
 					<input
+						ref={inputFileRef}
 						type='file'
-						onChange={e => handleUpload(e.target.files[0], setImageURL)}
+						onChange={e =>
+							handleLoadImage(e.target.files[0], setImageURL, currentUser)
+						}
 					/>
 				</div>
 			</form>
 		</>
 	);
 };
+const handleLoadImage = async (file, setImageURL, currentUser) => {
+	console.log(file);
+	const nameNoExtension = file.name.substring(0, file.name.indexOf('.'));
+	const finalName = nameNoExtension + v4();
+	const storageRef = ref(storage, `${currentUser.email}/${finalName}`);
 
-const handleUpload = async (file, setImageURL) => {
-	// Crea un objeto FileReader
-	const reader = new FileReader();
-
-	// Escucha el evento load que se dispara cuando la lectura del archivo es completada
-	reader.onload = event => {
-		const imageUrl = event.target.result;
-		const test = reader.readAsDataURL(imageUrl);
-
-		console.log(test);
-		setImageURL(imageUrl);
+	const metadata = {
+		contentType: file.type
 	};
-	// handleFileUpload(file, setImageURL);
+
+	try {
+		const uploadTask = uploadBytesResumable(storageRef, file, metadata);
+
+		uploadTask.on('state_changed', snapshot => {
+			const progress = Math.round(
+				(snapshot.bytesTransferred / snapshot.totalBytes) * 100
+			);
+		});
+
+		await uploadTask;
+
+		const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+		setImageURL(downloadURL);
+
+		// Obtén una referencia a la carpeta en Firebase Storage
+		const folderRef = ref(storage, currentUser.email);
+
+		// Obtiene la lista de todos los archivos en la carpeta
+		listAll(folderRef)
+			.then(res => {
+				res.items.forEach(itemRef => {
+					// Obtén la URL del archivo
+					getDownloadURL(itemRef)
+						.then(url => {
+							console.log(url);
+						})
+						.catch(error => {
+							console.log('Error al obtener la URL del archivo:', error);
+						});
+				});
+			})
+			.catch(error => {
+				console.log('Error al obtener la lista de archivos:', error);
+			});
+	} catch (error) {
+		console.error('Error al cargar la foto:', error);
+	}
 };
 
-// const handleFileUpload = async (file, setImageURL) => {
-// 	// Sube el archivo al almacenamiento de Firebase
-// 	const storageRef = ref(storage, file.name);
-// 	try {
-// 		await uploadBytes(storageRef, file);
-// 		await getDownloadURL(storageRef);
-// 	} catch (err) {
-// 		console.log(err);
-// 	}
-// };
+const handleDeleteImage = async (imageURL, setImageURL, inputFileRef) => {
+	const storageRef = ref(storage, imageURL);
+	try {
+		await deleteObject(storageRef);
+		console.log('Foto eliminada exitosamente');
+		setImageURL(defaultImage);
+		inputFileRef.current.value = null;
+	} catch (error) {
+		console.error('Error al eliminar la foto:', error);
+	}
+};
 
 const createPost = async (e, newPostInfo) => {
 	e.preventDefault();
